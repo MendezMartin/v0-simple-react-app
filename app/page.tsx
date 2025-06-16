@@ -77,7 +77,7 @@ export default function PriceCheckApp() {
     <div className="min-h-screen bg-gradient-to-br from-red-900 to-red-950 p-4">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-white text-4xl md:text-5xl font-bold">Price Check</h1>
+        <h1 className="text-white text-4xl md:text-5xl font-bold">Pricing rules validator</h1>
       </div>
 
       {/* Main Card */}
@@ -96,7 +96,7 @@ export default function PriceCheckApp() {
                   value={itemId}
                   onChange={(e) => setItemId(e.target.value)}
                   placeholder="Enter item identifier"
-                  className="w-full"
+                  className="w-64"
                 />
               </div>
 
@@ -176,20 +176,22 @@ export default function PriceCheckApp() {
               </div>
 
               {/* Check Price Button */}
-              <Button
-                onClick={handleCheckPrice}
-                className="w-full bg-red-900 hover:bg-red-800 text-white font-medium py-2 px-4"
-                disabled={!itemId.trim()}
-              >
-                Check Price
-              </Button>
+              <div className="flex justify-center">
+                <Button
+                  onClick={handleCheckPrice}
+                  className="w-1/2 bg-red-900 hover:bg-red-800 text-white font-medium py-2 px-4"
+                  disabled={!itemId.trim()}
+                >
+                  Check Price
+                </Button>
+              </div>
             </div>
 
             {/* Results Section */}
             {results && (
               <div className="border-t pt-6">
                 <h3 className="text-lg font-semibold text-gray-800 mb-4">Unit Details</h3>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   <div className="bg-gray-50 p-4 rounded-lg">
                     <div className="text-sm text-gray-600 mb-1">Manufacturing Cost</div>
                     <div className="text-xl font-semibold text-gray-800">{results.manufacturingCost}</div>
