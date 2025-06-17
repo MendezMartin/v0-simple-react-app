@@ -81,32 +81,25 @@ export default function PriceCheckApp() {
     const initialManufacturingCost = 15.0 // Base for manufacturing cost
 
     let currentManufacturingCost = initialManufacturingCost
-    let currentUnitCost = initialBaseUnitCost
+    let calculatedUnitCost = initialBaseUnitCost // This will be the base for unit cost and unit price calculations
 
     // 1. Apply 'Apply next pricing'
-    // This affects manufacturingCost and unitCost, but NOT unitPrice directly.
     if (modifiers.applyNextPricing) {
       currentManufacturingCost += 3.0 // Apply to manufacturing cost
-      currentUnitCost += 8.0 // Apply to unit cost
+      calculatedUnitCost += 8.0 // Apply to calculated unit cost
     }
 
-    // 2. Apply 'Apply standard trim discount'
-    // This applies to unitCost and unitPrice, ONLY if not overridden.
-    // Note: The discount is applied to the *calculated* unit cost before any override.
+    // 2. Apply 'Apply standard trim discount' to calculatedUnitCost
+    // This applies to calculatedUnitCost, which is the base for the markup calculation.
     if (modifiers.applyStandardTrimDiscount) {
-      // Apply discount to unitCost if it's not being overridden
-      if (!modifiers.overrideUnitCost) {
-        // Check if override is NOT active for unit cost
-        currentUnitCost *= 0.85 // 15% discount
-      }
-      // Unit price discount will be handled after finalUnitCost is determined
+      calculatedUnitCost *= 0.85 // Apply 15% discount
     }
 
     // 3. Determine finalUnitCost, prioritizing override if active
     const finalUnitCost =
       modifiers.overrideUnitCost && overrideValues.unitCost
         ? Number.parseFloat(overrideValues.unitCost)
-        : currentUnitCost
+        : calculatedUnitCost // If overrideUnitCost is off, finalUnitCost is the discounted calculatedUnitCost
 
     let finalUnitPrice
 
@@ -117,16 +110,17 @@ export default function PriceCheckApp() {
         // If unit price is overridden, use the overridden value
         finalUnitPrice = Number.parseFloat(overrideValues.unitPrice)
       } else {
-        // Otherwise, apply 20% markup to the finalUnitCost
-        finalUnitPrice = finalUnitCost * 1.2
+        // If unit price is NOT overridden, apply 50% markup to the *calculatedUnitCost*
+        // (which already has the standard trim discount applied if applicable)
+        finalUnitPrice = calculatedUnitCost * 1.5 // Apply 50% markup
       }
     } else {
-      // If markup is OFF, unit price always matches unit cost
+      // If markup is OFF, unit price always matches finalUnitCost
       finalUnitPrice = finalUnitCost
     }
 
     setResults({
-      manufacturingCost: `$${currentManufacturingCost.toFixed(2)}`, // Manufacturing cost is not overridden by unit cost override
+      manufacturingCost: `$${currentManufacturingCost.toFixed(2)}`,
       unitCost: `$${finalUnitCost.toFixed(2)}`,
       unitPrice: `$${finalUnitPrice.toFixed(2)}`,
     })
@@ -137,14 +131,14 @@ export default function PriceCheckApp() {
   const isOverrideUnitCostDisabled = !results
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-900 to-red-950 p-4">
+    <div className="min-h-screen bg-gradient-to-br from-red-900 to-red-950 p-4 flex flex-col">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-white text-4xl md:text-5xl font-bold">Pricing rules validator</h1>
       </div>
 
       {/* Main Card */}
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-2xl mx-auto w-full flex-grow">
         <Card className="bg-white shadow-xl">
           <CardContent className="p-8">
             {/* Input Section */}
@@ -166,98 +160,93 @@ export default function PriceCheckApp() {
               {/* Modifiers Section */}
               <div>
                 <Label className="text-base font-medium text-gray-700 mb-3 block">Modifiers</Label>
-                <div className={`space-y-3 ${!results ? "opacity-50" : ""}`}>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="applyStandardTrimDiscount"
-                      checked={modifiers.applyStandardTrimDiscount}
-                      onCheckedChange={() => handleModifierChange("applyStandardTrimDiscount")}
-                      disabled={!results}
-                    />
-                    <Label htmlFor="applyStandardTrimDiscount" className="text-sm font-normal">
-                      Apply standard trim discount (15%)
-                    </Label>
+                <div className={`space-y-4 ${!results ? "opacity-50" : ""}`}>
+                  {/* Row 1: Toggles */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="applyStandardTrimDiscount"
+                        checked={modifiers.applyStandardTrimDiscount}
+                        onCheckedChange={() => handleModifierChange("applyStandardTrimDiscount")}
+                        disabled={!results}
+                      />
+                      <Label htmlFor="applyStandardTrimDiscount" className="text-sm font-normal">
+                        Apply standard trim discount (15%)
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Switch
+                        id="addAccountWithMarkup"
+                        checked={modifiers.addAccountWithMarkup}
+                        onCheckedChange={() => handleModifierChange("addAccountWithMarkup")}
+                        disabled={!results}
+                      />
+                      <Label htmlFor="addAccountWithMarkup" className="text-sm font-normal">
+                        Add account with markup (50%)
+                      </Label>
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2">
-                    <Switch
-                      id="addAccountWithMarkup"
-                      checked={modifiers.addAccountWithMarkup}
-                      onCheckedChange={() => handleModifierChange("addAccountWithMarkup")}
-                      disabled={!results}
-                    />
-                    <Label htmlFor="addAccountWithMarkup" className="text-sm font-normal">
-                      Add account with markup (15%)
-                    </Label>
+
+                  {/* Row 2: Overrides on one line */}
+                  <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="overrideUnitCost"
+                        checked={modifiers.overrideUnitCost}
+                        onCheckedChange={() => handleModifierChange("overrideUnitCost")}
+                        disabled={isOverrideUnitCostDisabled}
+                      />
+                      <Label htmlFor="overrideUnitCost" className="text-sm font-normal">
+                        Override unit cost
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={overrideValues.unitCost}
+                        onChange={(e) => setOverrideValues((prev) => ({ ...prev, unitCost: e.target.value }))}
+                        disabled={isOverrideUnitCostDisabled || !modifiers.overrideUnitCost}
+                        className="w-24 ml-2"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="overrideUnitPrice"
+                        checked={modifiers.overrideUnitPrice}
+                        onCheckedChange={() => handleModifierChange("overrideUnitPrice")}
+                        disabled={isOverrideUnitPriceDisabled}
+                      />
+                      <Label htmlFor="overrideUnitPrice" className="text-sm font-normal">
+                        Override unit price
+                      </Label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={overrideValues.unitPrice}
+                        onChange={(e) => setOverrideValues((prev) => ({ ...prev, unitPrice: e.target.value }))}
+                        disabled={isOverrideUnitPriceDisabled || !modifiers.overrideUnitPrice}
+                        className="w-24 ml-2"
+                      />
+                    </div>
                   </div>
-                  {/* Apply Next Pricing as a Button */}
+
+                  {/* Row 3: Apply Next Pricing Button */}
                   <div className="flex items-center space-x-2">
                     <Button
                       onClick={handleApplyNextPricingClick}
                       disabled={!results}
-                      variant="default" // No conditional variant for "on/off" visual
+                      variant="default"
                       className="h-8 px-3 text-sm"
                     >
                       Apply next pricing
                     </Button>
-                    {/* No label needed here as the button itself is the action */}
                   </div>
-                  {/* Reordered Checkboxes */}
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="overrideUnitCost"
-                      checked={modifiers.overrideUnitCost}
-                      onCheckedChange={() => handleModifierChange("overrideUnitCost")}
-                      disabled={isOverrideUnitCostDisabled}
-                    />
-                    <Label htmlFor="overrideUnitCost" className="text-sm font-normal">
-                      Override unit cost
-                    </Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={overrideValues.unitCost}
-                      onChange={(e) => setOverrideValues((prev) => ({ ...prev, unitCost: e.target.value }))}
-                      disabled={isOverrideUnitCostDisabled || !modifiers.overrideUnitCost}
-                      className="w-24 ml-2"
-                    />
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="overrideUnitPrice"
-                      checked={modifiers.overrideUnitPrice}
-                      onCheckedChange={() => handleModifierChange("overrideUnitPrice")}
-                      disabled={isOverrideUnitPriceDisabled}
-                    />
-                    <Label htmlFor="overrideUnitPrice" className="text-sm font-normal">
-                      Override unit price
-                    </Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="0.00"
-                      value={overrideValues.unitPrice}
-                      onChange={(e) => setOverrideValues((prev) => ({ ...prev, unitPrice: e.target.value }))}
-                      disabled={isOverrideUnitPriceDisabled || !modifiers.overrideUnitPrice}
-                      className="w-24 ml-2"
-                    />
-                  </div>
-                </div>
-                {/* Reset Button */}
-                <div className="mt-6 flex justify-center">
-                  <Button
-                    onClick={handleReset}
-                    disabled={!results && !itemId.trim()} // Disable if no results and no item ID entered
-                    variant="outline"
-                    className="w-1/2"
-                  >
-                    Reset All
-                  </Button>
                 </div>
               </div>
 
               {/* Check Price Button */}
-              <div className="flex justify-center">
+              <div className="flex justify-center mt-8">
                 <Button
                   onClick={handleCheckPrice}
                   className="w-1/2 bg-red-900 hover:bg-red-800 text-white font-medium py-2 px-4"
@@ -290,6 +279,12 @@ export default function PriceCheckApp() {
             )}
           </CardContent>
         </Card>
+      </div>
+      {/* Reset Button at the very bottom */}
+      <div className="mt-8 flex justify-center pb-4">
+        <Button onClick={handleReset} disabled={!results && !itemId.trim()} variant="outline" className="w-48">
+          Reset All
+        </Button>
       </div>
     </div>
   )
