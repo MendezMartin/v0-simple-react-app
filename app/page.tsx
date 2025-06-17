@@ -7,116 +7,157 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+
+// Define the initial state for modifiers (global defaults)
+const initialModifiersState = {
+  applyStandardTrimDiscount: false,
+  addAccountWithMarkup: false,
+  applyNextPricing: false,
+  overrideUnitPrice: false,
+  overrideUnitCost: false,
+}
+
+// Define the initial state for override values (global defaults)
+const initialOverrideValuesState = {
+  unitPrice: "",
+  unitCost: "",
+}
 
 export default function PriceCheckApp() {
   const [itemId, setItemId] = useState("")
-  const [modifiers, setModifiers] = useState({
-    applyStandardTrimDiscount: false,
-    addAccountWithMarkup: false,
-    applyNextPricing: false, // This will be set to true by the button click
-    overrideUnitPrice: false,
-    overrideUnitCost: false,
-  })
-  const [overrideValues, setOverrideValues] = useState({
-    unitPrice: "",
-    unitCost: "",
-  })
+  const [selectedActor, setSelectedActor] = useState<string | null>(null)
+
+  // Global states for modifiers and override values - these persist across actor changes
+  const [modifiers, setModifiers] = useState(initialModifiersState)
+  const [overrideValues, setOverrideValues] = useState(initialOverrideValuesState)
+
   const [results, setResults] = useState<{
     manufacturingCost: string
     unitCost: string
     unitPrice: string
   } | null>(null)
 
-  useEffect(() => {
-    // Recalculate prices if modifiers or override values change, but only if results are already displayed
-    if (results) {
-      handleCheckPrice()
-    }
-  }, [overrideValues, modifiers])
+  // Derived modifiers and override values for UI display and calculation
+  // These reflect the global state, potentially adjusted by actor-specific rules
+  const derivedModifiers = { ...modifiers }
+  const derivedOverrideValues = { ...overrideValues }
 
-  const handleModifierChange = (modifier: keyof typeof modifiers) => {
+  // Apply actor-specific overrides to the derived states for calculation and UI display
+  if (selectedActor === "account") {
+    derivedModifiers.addAccountWithMarkup = true // Account user always has markup on
+  }
+
+  useEffect(() => {
+    // This effect runs when itemId, selectedActor, or any part of the global modifiers/overrideValues changes.
+    // It triggers the price calculation to update the results.
+    handleCheckPrice()
+  }, [itemId, selectedActor, modifiers, overrideValues]) // Depend on global states
+
+  const handleModifierChange = (modifier: keyof typeof initialModifiersState) => {
+    // Update the global modifiers state
     setModifiers((prev) => {
       const newModifiers = {
         ...prev,
         [modifier]: !prev[modifier],
       }
 
-      // If "Add account with markup" is turned off, disable and uncheck "Override unit price"
+      // Specific logic for addAccountWithMarkup affecting overrideUnitPrice
+      // This logic applies to the global state
       if (modifier === "addAccountWithMarkup" && !newModifiers.addAccountWithMarkup) {
-        newModifiers.overrideUnitPrice = false
-        setOverrideValues((prev) => ({ ...prev, unitPrice: "" })) // Clear override value
+        setOverrideValues((prevOverrides) => ({ ...prevOverrides, unitPrice: "" })) // Clear override value globally
+        newModifiers.overrideUnitPrice = false // Uncheck override unit price globally
       }
+
       return newModifiers
     })
   }
 
+  const handleActorChange = (actor: string) => {
+    // Only update the selected actor. Modifiers and override values persist globally.
+    setSelectedActor(actor)
+  }
+
   const handleApplyNextPricingClick = () => {
+    // Update global modifiers and override values
     setModifiers((prev) => ({
       ...prev,
-      applyNextPricing: true, // Always set to true when button is clicked
-      overrideUnitCost: false, // Uncheck override unit cost
+      applyNextPricing: true,
+      overrideUnitCost: false, // Uncheck override unit cost globally
     }))
-    setOverrideValues((prev) => ({ ...prev, unitCost: "" })) // Clear override unit cost value
-    // handleCheckPrice will be called by the useEffect due to modifiers/overrideValues change
+    setOverrideValues((prev) => ({ ...prev, unitCost: "" })) // Clear override unit cost value globally
   }
 
   const handleReset = () => {
-    setModifiers({
-      applyStandardTrimDiscount: false,
-      addAccountWithMarkup: false,
-      applyNextPricing: false,
-      overrideUnitPrice: false,
-      overrideUnitCost: false,
-    })
-    setOverrideValues({
-      unitPrice: "",
-      unitCost: "",
-    })
-    setResults(null) // Clear results
-    setItemId("") // Clear item ID
+    setItemId("")
+    setResults(null) // Explicitly clear results on reset
+    setSelectedActor(null) // Clear selected actor
+
+    // Reset global modifiers and override values to their initial defaults
+    setModifiers(initialModifiersState)
+    setOverrideValues(initialOverrideValuesState)
   }
 
   const handleCheckPrice = () => {
+    // If no item ID or no actor selected, clear results and stop.
+    if (!itemId.trim() || !selectedActor) {
+      setResults(null)
+      return
+    }
+
     const initialBaseUnitCost = 25.0 // Base for unit cost calculation
     const initialManufacturingCost = 15.0 // Base for manufacturing cost
 
     let currentManufacturingCost = initialManufacturingCost
     let calculatedUnitCost = initialBaseUnitCost // This will be the base for unit cost and unit price calculations
 
-    // 1. Apply 'Apply next pricing'
-    if (modifiers.applyNextPricing) {
+    // 1. Apply 'Apply next pricing' using derived modifiers
+    if (derivedModifiers.applyNextPricing) {
       currentManufacturingCost += 3.0 // Apply to manufacturing cost
       calculatedUnitCost += 8.0 // Apply to calculated unit cost
     }
 
-    // 2. Apply 'Apply standard trim discount' to calculatedUnitCost
-    // This applies to calculatedUnitCost, which is the base for the markup calculation.
-    if (modifiers.applyStandardTrimDiscount) {
-      calculatedUnitCost *= 0.85 // Apply 15% discount
+    // 2. Apply 'Apply standard trim discount' to calculatedUnitCost, unless overrideUnitCost is active
+    let discountedCalculatedUnitCost = calculatedUnitCost
+    if (derivedModifiers.applyStandardTrimDiscount) {
+      if (!(derivedModifiers.overrideUnitCost && derivedOverrideValues.unitCost)) {
+        discountedCalculatedUnitCost *= 0.85 // Apply 15% discount
+      }
     }
 
-    // 3. Determine finalUnitCost, prioritizing override if active
+    // 3. Determine finalUnitCost, prioritizing override if active, using derived values
     const finalUnitCost =
-      modifiers.overrideUnitCost && overrideValues.unitCost
-        ? Number.parseFloat(overrideValues.unitCost)
-        : calculatedUnitCost // If overrideUnitCost is off, finalUnitCost is the discounted calculatedUnitCost
+      derivedModifiers.overrideUnitCost && derivedOverrideValues.unitCost
+        ? Number.parseFloat(derivedOverrideValues.unitCost)
+        : discountedCalculatedUnitCost // Use the potentially discounted calculatedUnitCost
 
     let finalUnitPrice
 
-    // 4. Logic for finalUnitPrice based on "Add account with markup" and "Override unit price"
-    if (modifiers.addAccountWithMarkup) {
-      // If markup is ON
-      if (modifiers.overrideUnitPrice && overrideValues.unitPrice) {
-        // If unit price is overridden, use the overridden value
-        finalUnitPrice = Number.parseFloat(overrideValues.unitPrice)
-      } else {
-        // If unit price is NOT overridden, apply 50% markup to the *calculatedUnitCost*
-        // (which already has the standard trim discount applied if applicable)
-        finalUnitPrice = calculatedUnitCost * 1.5 // Apply 50% markup
+    // 4. Calculate base unit price for markup, always based on initialBaseUnitCost
+    const baseUnitPriceForMarkup = initialBaseUnitCost
+
+    // 5. Logic for finalUnitPrice based on "Add account with markup"
+    if (derivedModifiers.addAccountWithMarkup) {
+      // If markup is ON, calculate unit price with markup on initialBaseUnitCost
+      finalUnitPrice = baseUnitPriceForMarkup * 1.5
+
+      // If markup is ON AND standard trim discount is ON, apply discount to unit price
+      // UNLESS unit price is overridden
+      if (
+        derivedModifiers.applyStandardTrimDiscount &&
+        !(derivedModifiers.overrideUnitPrice && derivedOverrideValues.unitPrice)
+      ) {
+        finalUnitPrice *= 0.85 // Apply 15% discount
       }
     } else {
       // If markup is OFF, unit price always matches finalUnitCost
+      // The standard trim discount (if active) would have already been applied to finalUnitCost
       finalUnitPrice = finalUnitCost
+    }
+
+    // 6. Finally, apply overrideUnitPrice if it's active (this takes highest precedence)
+    if (derivedModifiers.overrideUnitPrice && derivedOverrideValues.unitPrice) {
+      finalUnitPrice = Number.parseFloat(derivedOverrideValues.unitPrice)
     }
 
     setResults({
@@ -126,20 +167,63 @@ export default function PriceCheckApp() {
     })
   }
 
-  // Determine disabled states for UI elements
-  const isOverrideUnitPriceDisabled = !results || !modifiers.addAccountWithMarkup
-  const isOverrideUnitCostDisabled = !results
+  // Determine disabled states for UI elements based on selectedActor and derivedModifiers
+  const isItemIdDisabled = !selectedActor
+  const isStandardTrimDiscountDisabled = !selectedActor
+  const isAddAccountWithMarkupDisabled = !selectedActor || selectedActor === "account" || selectedActor === "csmUser"
+  const isOverrideUnitCostDisabled = !selectedActor || selectedActor !== "csmUser"
+  const isOverrideUnitPriceDisabled =
+    !selectedActor ||
+    selectedActor !== "customer" ||
+    (selectedActor === "customer" && !derivedModifiers.addAccountWithMarkup)
+  const isApplyNextPricingDisabled = !selectedActor || selectedActor !== "csmUser"
+
+  // Handler for override input fields to update global overrideValues directly
+  const handleOverrideValueChange = (type: "unitPrice" | "unitCost", value: string) => {
+    setOverrideValues((prev) => ({
+      ...prev,
+      [type]: value,
+    }))
+  }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-red-900 to-red-950 p-4 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-red-900 to-red-950 p-4 flex flex-col items-center">
       {/* Header */}
-      <div className="mb-8">
+      <div className="mb-8 text-center">
         <h1 className="text-white text-4xl md:text-5xl font-bold">Pricing rules validator</h1>
       </div>
 
-      {/* Main Card */}
-      <div className="max-w-2xl mx-auto w-full flex-grow">
-        <Card className="bg-white shadow-xl">
+      {/* Main Content Area: Actors Card + Price Check Card */}
+      <div className="flex flex-col lg:flex-row gap-8 max-w-full items-start lg:items-stretch">
+        {/* Actors Section (Left Card) */}
+        <Card className="bg-white shadow-xl w-full lg:w-72 flex-shrink-0">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Actors</h3>
+            <RadioGroup value={selectedActor || ""} onValueChange={handleActorChange} className="space-y-3">
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="account" id="actorAccount" />
+                <Label htmlFor="actorAccount" className="text-sm font-normal">
+                  Account user
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="customer" id="actorCustomer" />
+                <Label htmlFor="actorCustomer" className="text-sm font-normal">
+                  Customer user
+                </Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <RadioGroupItem value="csmUser" id="actorCsmUser" />
+                <Label htmlFor="actorCsmUser" className="text-sm font-normal">
+                  CSM user
+                </Label>
+              </div>
+            </RadioGroup>
+          </CardContent>
+        </Card>
+
+        {/* Main Price Check Card (Right Card) */}
+        <Card className="bg-white shadow-xl w-full lg:max-w-2xl">
           <CardContent className="p-8">
             {/* Input Section */}
             <div className="space-y-6 mb-8">
@@ -154,21 +238,22 @@ export default function PriceCheckApp() {
                   onChange={(e) => setItemId(e.target.value)}
                   placeholder="Enter item identifier"
                   className="w-64"
+                  disabled={isItemIdDisabled} // Disabled until actor is selected
                 />
               </div>
 
               {/* Modifiers Section */}
               <div>
                 <Label className="text-base font-medium text-gray-700 mb-3 block">Modifiers</Label>
-                <div className={`space-y-4 ${!results ? "opacity-50" : ""}`}>
+                <div className={`space-y-4 ${!selectedActor ? "opacity-50" : ""}`}>
                   {/* Row 1: Toggles */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                     <div className="flex items-center space-x-2">
                       <Switch
                         id="applyStandardTrimDiscount"
-                        checked={modifiers.applyStandardTrimDiscount}
+                        checked={derivedModifiers.applyStandardTrimDiscount}
                         onCheckedChange={() => handleModifierChange("applyStandardTrimDiscount")}
-                        disabled={!results}
+                        disabled={isStandardTrimDiscountDisabled}
                       />
                       <Label htmlFor="applyStandardTrimDiscount" className="text-sm font-normal">
                         Apply standard trim discount (15%)
@@ -177,9 +262,9 @@ export default function PriceCheckApp() {
                     <div className="flex items-center space-x-2">
                       <Switch
                         id="addAccountWithMarkup"
-                        checked={modifiers.addAccountWithMarkup}
+                        checked={derivedModifiers.addAccountWithMarkup} // Use derived state
                         onCheckedChange={() => handleModifierChange("addAccountWithMarkup")}
-                        disabled={!results}
+                        disabled={isAddAccountWithMarkupDisabled}
                       />
                       <Label htmlFor="addAccountWithMarkup" className="text-sm font-normal">
                         Add account with markup (50%)
@@ -192,7 +277,7 @@ export default function PriceCheckApp() {
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="overrideUnitCost"
-                        checked={modifiers.overrideUnitCost}
+                        checked={derivedModifiers.overrideUnitCost} // Use derived state
                         onCheckedChange={() => handleModifierChange("overrideUnitCost")}
                         disabled={isOverrideUnitCostDisabled}
                       />
@@ -203,16 +288,16 @@ export default function PriceCheckApp() {
                         type="number"
                         step="0.01"
                         placeholder="0.00"
-                        value={overrideValues.unitCost}
-                        onChange={(e) => setOverrideValues((prev) => ({ ...prev, unitCost: e.target.value }))}
-                        disabled={isOverrideUnitCostDisabled || !modifiers.overrideUnitCost}
+                        value={derivedOverrideValues.unitCost} // Use derived state
+                        onChange={(e) => handleOverrideValueChange("unitCost", e.target.value)}
+                        disabled={isOverrideUnitCostDisabled || !derivedModifiers.overrideUnitCost}
                         className="w-24 ml-2"
                       />
                     </div>
                     <div className="flex items-center space-x-2">
                       <Checkbox
                         id="overrideUnitPrice"
-                        checked={modifiers.overrideUnitPrice}
+                        checked={derivedModifiers.overrideUnitPrice} // Use derived state
                         onCheckedChange={() => handleModifierChange("overrideUnitPrice")}
                         disabled={isOverrideUnitPriceDisabled}
                       />
@@ -223,9 +308,9 @@ export default function PriceCheckApp() {
                         type="number"
                         step="0.01"
                         placeholder="0.00"
-                        value={overrideValues.unitPrice}
-                        onChange={(e) => setOverrideValues((prev) => ({ ...prev, unitPrice: e.target.value }))}
-                        disabled={isOverrideUnitPriceDisabled || !modifiers.overrideUnitPrice}
+                        value={derivedOverrideValues.unitPrice} // Use derived state
+                        onChange={(e) => handleOverrideValueChange("unitPrice", e.target.value)}
+                        disabled={isOverrideUnitPriceDisabled || !derivedModifiers.overrideUnitPrice}
                         className="w-24 ml-2"
                       />
                     </div>
@@ -235,7 +320,7 @@ export default function PriceCheckApp() {
                   <div className="flex items-center space-x-2">
                     <Button
                       onClick={handleApplyNextPricingClick}
-                      disabled={!results}
+                      disabled={isApplyNextPricingDisabled}
                       variant="default"
                       className="h-8 px-3 text-sm"
                     >
@@ -250,7 +335,7 @@ export default function PriceCheckApp() {
                 <Button
                   onClick={handleCheckPrice}
                   className="w-1/2 bg-red-900 hover:bg-red-800 text-white font-medium py-2 px-4"
-                  disabled={!itemId.trim()}
+                  disabled={!itemId.trim() || !selectedActor} // Disabled if no item ID or no actor selected
                 >
                   Check Price
                 </Button>
@@ -281,8 +366,13 @@ export default function PriceCheckApp() {
         </Card>
       </div>
       {/* Reset Button at the very bottom */}
-      <div className="mt-8 flex justify-center pb-4">
-        <Button onClick={handleReset} disabled={!results && !itemId.trim()} variant="outline" className="w-48">
+      <div className="mt-8 flex justify-center pb-4 w-full">
+        <Button
+          onClick={handleReset}
+          disabled={!results && !itemId.trim() && !selectedActor}
+          variant="outline"
+          className="w-48"
+        >
           Reset All
         </Button>
       </div>
