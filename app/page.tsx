@@ -49,10 +49,25 @@ export default function PriceCheckApp() {
   }
 
   useEffect(() => {
-    // This effect runs when itemId, selectedActor, or any part of the global modifiers/overrideValues changes.
+    // This effect runs when selectedActor or any part of the global modifiers/overrideValues changes.
     // It triggers the price calculation to update the results.
+    // Note: itemId is intentionally excluded to prevent recalculation while typing
     handleCheckPrice()
-  }, [itemId, selectedActor, modifiers, overrideValues]) // Depend on global states
+  }, [modifiers, overrideValues]) // Removed itemId from dependencies
+
+  // Separate effect to clear results when Item ID changes
+  useEffect(() => {
+    // Clear results when Item ID changes, forcing user to click "Check Price" for new results
+    setResults(null)
+  }, [itemId])
+
+  // Reset modifiers to defaults when results are null
+  useEffect(() => {
+    if (results === null) {
+      setModifiers(initialModifiersState)
+      setOverrideValues(initialOverrideValuesState)
+    }
+  }, [results])
 
   const handleModifierChange = (modifier: keyof typeof initialModifiersState) => {
     // Update the global modifiers state
@@ -169,14 +184,15 @@ export default function PriceCheckApp() {
 
   // Determine disabled states for UI elements based on selectedActor and derivedModifiers
   const isItemIdDisabled = !selectedActor
-  const isStandardTrimDiscountDisabled = !selectedActor
-  const isAddAccountWithMarkupDisabled = !selectedActor || selectedActor === "account" || selectedActor === "csmUser"
-  const isOverrideUnitCostDisabled = !selectedActor || selectedActor !== "csmUser"
+  const isStandardTrimDiscountDisabled = !selectedActor || results === null
+  const isAddAccountWithMarkupDisabled = !selectedActor || selectedActor === "account" || selectedActor === "csmUser" || results === null
+  const isOverrideUnitCostDisabled = !selectedActor || selectedActor !== "csmUser" || results === null
   const isOverrideUnitPriceDisabled =
     !selectedActor ||
     selectedActor !== "customer" ||
-    (selectedActor === "customer" && !derivedModifiers.addAccountWithMarkup)
-  const isApplyNextPricingDisabled = !selectedActor || selectedActor !== "csmUser"
+    (selectedActor === "customer" && !derivedModifiers.addAccountWithMarkup) ||
+    results === null
+  const isApplyNextPricingDisabled = !selectedActor || selectedActor !== "csmUser" || results === null
 
   // Handler for override input fields to update global overrideValues directly
   const handleOverrideValueChange = (type: "unitPrice" | "unitCost", value: string) => {
@@ -245,7 +261,7 @@ export default function PriceCheckApp() {
               {/* Modifiers Section */}
               <div>
                 <Label className="text-base font-medium text-gray-700 mb-3 block">Modifiers</Label>
-                <div className={`space-y-4 ${!selectedActor ? "opacity-50" : ""}`}>
+                <div className={`space-y-4 ${!selectedActor || results === null ? "opacity-50" : ""}`}>
                   {/* Row 1: Toggles */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
                     <div className="flex items-center space-x-2">
