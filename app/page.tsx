@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Card, CardContent } from "@/components/ui/card"
 import { Switch } from "@/components/ui/switch"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { CalendarDays } from "lucide-react"
 
 // Define the initial state for modifiers (global defaults)
 const initialModifiersState = {
@@ -24,6 +25,13 @@ const initialOverrideValuesState = {
   unitCost: "",
 }
 
+// Define the available items with their base prices
+const availableItems = [
+  { id: "RA6BI", baseUnitCost: 5.208, baseManufacturingCost: 0 },
+  { id: "PP6GR", baseUnitCost: 4.8745, baseManufacturingCost: 2.40 },
+  { id: "BTR", baseUnitCost: 11.4834, baseManufacturingCost: 6.08 },
+]
+
 export default function PriceCheckApp() {
   const [itemId, setItemId] = useState("")
   const [selectedActor, setSelectedActor] = useState<string | null>(null)
@@ -38,6 +46,10 @@ export default function PriceCheckApp() {
     unitPrice: string
   } | null>(null)
 
+  // Add state to track current item and validation
+  const [currentItem, setCurrentItem] = useState<typeof availableItems[0] | null>(null)
+  const [isValidItem, setIsValidItem] = useState(false)
+
   // Derived modifiers and override values for UI display and calculation
   // These reflect the global state, potentially adjusted by actor-specific rules
   const derivedModifiers = { ...modifiers }
@@ -46,6 +58,19 @@ export default function PriceCheckApp() {
   // Apply actor-specific overrides to the derived states for calculation and UI display
   if (selectedActor === "account") {
     derivedModifiers.addAccountWithMarkup = true // Account user always has markup on
+  }
+
+  // Function to validate and find item
+  const validateAndFindItem = (itemId: string) => {
+    const foundItem = availableItems.find(item => item.id.toLowerCase() === itemId.trim().toLowerCase())
+    setIsValidItem(!!foundItem)
+    setCurrentItem(foundItem || null)
+    return foundItem
+  }
+
+  // Function to check if item is valid (for immediate use)
+  const isItemValid = (itemId: string) => {
+    return availableItems.some(item => item.id.toLowerCase() === itemId.trim().toLowerCase())
   }
 
   useEffect(() => {
@@ -59,6 +84,8 @@ export default function PriceCheckApp() {
   useEffect(() => {
     // Clear results when Item ID changes, forcing user to click "Check Price" for new results
     setResults(null)
+    // Note: We don't clear currentItem and isValidItem here anymore
+    // as they should be managed by the onChange handler
   }, [itemId])
 
   // Reset modifiers to defaults when results are null
@@ -107,6 +134,8 @@ export default function PriceCheckApp() {
     setItemId("")
     setResults(null) // Explicitly clear results on reset
     setSelectedActor(null) // Clear selected actor
+    setCurrentItem(null) // Clear current item
+    setIsValidItem(false) // Clear validation state
 
     // Reset global modifiers and override values to their initial defaults
     setModifiers(initialModifiersState)
@@ -120,8 +149,16 @@ export default function PriceCheckApp() {
       return
     }
 
-    const initialBaseUnitCost = 25.0 // Base for unit cost calculation
-    const initialManufacturingCost = 15.0 // Base for manufacturing cost
+    // Validate the item first
+    const foundItem = validateAndFindItem(itemId)
+    if (!foundItem) {
+      setResults(null)
+      return
+    }
+
+    // Use the found item's base prices
+    const initialBaseUnitCost = foundItem.baseUnitCost
+    const initialManufacturingCost = foundItem.baseManufacturingCost
 
     let currentManufacturingCost = initialManufacturingCost
     let calculatedUnitCost = initialBaseUnitCost // This will be the base for unit cost and unit price calculations
@@ -193,6 +230,7 @@ export default function PriceCheckApp() {
     (selectedActor === "customer" && !derivedModifiers.addAccountWithMarkup) ||
     results === null
   const isApplyNextPricingDisabled = !selectedActor || selectedActor !== "csmUser" || results === null
+  const isCheckPriceDisabled = !itemId.trim() || !selectedActor || !isItemValid(itemId)
 
   // Handler for override input fields to update global overrideValues directly
   const handleOverrideValueChange = (type: "unitPrice" | "unitCost", value: string) => {
@@ -214,7 +252,7 @@ export default function PriceCheckApp() {
         {/* Actors Section (Left Card) */}
         <Card className="bg-white shadow-xl w-full lg:w-72 flex-shrink-0">
           <CardContent className="p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Actors</h3>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Select Actor</h3>
             <RadioGroup value={selectedActor || ""} onValueChange={handleActorChange} className="space-y-3">
               <div className="flex items-center space-x-2">
                 <RadioGroupItem value="account" id="actorAccount" />
@@ -251,11 +289,25 @@ export default function PriceCheckApp() {
                   id="itemId"
                   type="text"
                   value={itemId}
-                  onChange={(e) => setItemId(e.target.value)}
-                  placeholder="Enter item identifier"
-                  className="w-64"
+                  onChange={(e) => {
+                    setItemId(e.target.value)
+                    if (e.target.value.trim()) {
+                      validateAndFindItem(e.target.value)
+                    } else {
+                      setIsValidItem(false)
+                      setCurrentItem(null)
+                    }
+                  }}
+                  placeholder="Enter item ID. (RA6BI, PP6GR, BTR)"
+                  className={`w-64 ${itemId.trim() && !isItemValid(itemId) ? "border-red-500" : ""}`}
                   disabled={isItemIdDisabled} // Disabled until actor is selected
                 />
+                {itemId.trim() && !isItemValid(itemId) && (
+                  <p className="text-red-500 text-sm mt-1">Invalid Item ID. Please enter RA6BI, PP6GR, or BTR.</p>
+                )}
+                {isItemValid(itemId) && currentItem && (
+                  <p className="text-green-600 text-sm mt-1">✓ Valid item: {currentItem.id}</p>
+                )}
               </div>
 
               {/* Modifiers Section */}
@@ -340,7 +392,8 @@ export default function PriceCheckApp() {
                       variant="default"
                       className="h-8 px-3 text-sm"
                     >
-                      Apply next pricing
+                      <CalendarDays className="mr-2 h-4 w-4" />
+                      Next Pricing
                     </Button>
                   </div>
                 </div>
@@ -351,7 +404,7 @@ export default function PriceCheckApp() {
                 <Button
                   onClick={handleCheckPrice}
                   className="w-1/2 bg-red-900 hover:bg-red-800 text-white font-medium py-2 px-4"
-                  disabled={!itemId.trim() || !selectedActor} // Disabled if no item ID or no actor selected
+                  disabled={isCheckPriceDisabled}
                 >
                   Check Price
                 </Button>
