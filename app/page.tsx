@@ -50,6 +50,12 @@ export default function PriceCheckApp() {
   const [currentItem, setCurrentItem] = useState<typeof availableItems[0] | null>(null)
   const [isValidItem, setIsValidItem] = useState(false)
 
+  const [conditionsSummary, setConditionsSummary] = useState<{
+    manufacturingCost: string
+    unitCost: string
+    unitPrice: string
+  } | null>(null)
+
   // Derived modifiers and override values for UI display and calculation
   // These reflect the global state, potentially adjusted by actor-specific rules
   const derivedModifiers = { ...modifiers }
@@ -93,6 +99,7 @@ export default function PriceCheckApp() {
     if (results === null) {
       setModifiers(initialModifiersState)
       setOverrideValues(initialOverrideValuesState)
+      setConditionsSummary(null)
     }
   }, [results])
 
@@ -160,6 +167,12 @@ export default function PriceCheckApp() {
     const initialBaseUnitCost = foundItem.baseUnitCost
     const initialManufacturingCost = foundItem.baseManufacturingCost
 
+    const summary = {
+      manufacturingCost: "Derived from the item's base manufacturing cost.",
+      unitCost: "Derived from the item's base unit cost.",
+      unitPrice: "",
+    }
+
     let currentManufacturingCost = initialManufacturingCost
     let calculatedUnitCost = initialBaseUnitCost // This will be the base for unit cost and unit price calculations
 
@@ -167,6 +180,8 @@ export default function PriceCheckApp() {
     if (derivedModifiers.applyNextPricing) {
       currentManufacturingCost += 3.0 // Apply to manufacturing cost
       calculatedUnitCost += 8.0 // Apply to calculated unit cost
+      summary.manufacturingCost = "Base cost + 'Next Pricing' adjustment."
+      summary.unitCost = "Base cost + 'Next Pricing' adjustment."
     }
 
     // 2. Apply 'Apply standard trim discount' to calculatedUnitCost, unless overrideUnitCost is active
@@ -174,6 +189,7 @@ export default function PriceCheckApp() {
     if (derivedModifiers.applyStandardTrimDiscount) {
       if (!(derivedModifiers.overrideUnitCost && derivedOverrideValues.unitCost)) {
         discountedCalculatedUnitCost *= 0.85 // Apply 15% discount
+        summary.unitCost += " A 15% discount was then applied."
       }
     }
 
@@ -182,6 +198,10 @@ export default function PriceCheckApp() {
       derivedModifiers.overrideUnitCost && derivedOverrideValues.unitCost
         ? Number.parseFloat(derivedOverrideValues.unitCost)
         : discountedCalculatedUnitCost // Use the potentially discounted calculatedUnitCost
+
+    if (derivedModifiers.overrideUnitCost && derivedOverrideValues.unitCost) {
+      summary.unitCost = "Value was overridden by the CSM user."
+    }
 
     let finalUnitPrice
 
@@ -192,6 +212,7 @@ export default function PriceCheckApp() {
     if (derivedModifiers.addAccountWithMarkup) {
       // If markup is ON, calculate unit price with markup on initialBaseUnitCost
       finalUnitPrice = baseUnitPriceForMarkup * 1.5
+      summary.unitPrice = "Base cost + 50% markup."
 
       // If markup is ON AND standard trim discount is ON, apply discount to unit price
       // UNLESS unit price is overridden
@@ -200,16 +221,19 @@ export default function PriceCheckApp() {
         !(derivedModifiers.overrideUnitPrice && derivedOverrideValues.unitPrice)
       ) {
         finalUnitPrice *= 0.85 // Apply 15% discount
+        summary.unitPrice += " A 15% discount was also applied."
       }
     } else {
       // If markup is OFF, unit price always matches finalUnitCost
       // The standard trim discount (if active) would have already been applied to finalUnitCost
       finalUnitPrice = finalUnitCost
+      summary.unitPrice = "Matches the final Unit Cost."
     }
 
     // 6. Finally, apply overrideUnitPrice if it's active (this takes highest precedence)
     if (derivedModifiers.overrideUnitPrice && derivedOverrideValues.unitPrice) {
       finalUnitPrice = Number.parseFloat(derivedOverrideValues.unitPrice)
+      summary.unitPrice = "Value was overridden by the customer user."
     }
 
     setResults({
@@ -217,6 +241,7 @@ export default function PriceCheckApp() {
       unitCost: `$${finalUnitCost.toFixed(2)}`,
       unitPrice: `$${finalUnitPrice.toFixed(2)}`,
     })
+    setConditionsSummary(summary)
   }
 
   // Determine disabled states for UI elements based on selectedActor and derivedModifiers
@@ -466,17 +491,26 @@ export default function PriceCheckApp() {
         {/* Conditions Card */}
         <Card className="bg-white shadow-xl w-full lg:w-72 flex-shrink-0">
           <CardContent className="p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-4">Pricing Conditions</h3>
-            {pricingConditions.length > 0 ? (
-              <ul className="space-y-2 list-disc pl-5">
-                {pricingConditions.map((condition, index) => (
-                  <li key={index} className="text-sm text-gray-700">
-                    {condition}
-                  </li>
-                ))}
-              </ul>
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">How Prices Are Calculated</h3>
+            {conditionsSummary ? (
+              <div className="space-y-4">
+                <div>
+                  <h4 className="font-semibold text-gray-700">Manufacturing Cost</h4>
+                  <p className="text-sm text-gray-600">{conditionsSummary.manufacturingCost}</p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-700">Unit Cost</h4>
+                  <p className="text-sm text-gray-600">{conditionsSummary.unitCost}</p>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-gray-700">Unit Price</h4>
+                  <p className="text-sm text-gray-600">{conditionsSummary.unitPrice}</p>
+                </div>
+              </div>
             ) : (
-              <p className="text-sm text-gray-500">Select an actor and enter a valid item ID to see pricing conditions.</p>
+              <p className="text-sm text-gray-500">
+                Select an actor and enter a valid item ID to see how prices are calculated.
+              </p>
             )}
           </CardContent>
         </Card>
