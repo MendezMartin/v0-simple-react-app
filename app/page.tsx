@@ -232,6 +232,35 @@ export default function PriceCheckApp() {
   const isApplyNextPricingDisabled = !selectedActor || selectedActor !== "csmUser" || results === null
   const isCheckPriceDisabled = !itemId.trim() || !selectedActor || !isItemValid(itemId)
 
+  const pricingConditions = []
+  if (results && currentItem) {
+    if (selectedActor === "account") pricingConditions.push("Viewing as an Account user.")
+    if (selectedActor === "customer") pricingConditions.push("Viewing as a Customer user.")
+    if (selectedActor === "csmUser") pricingConditions.push("Viewing as a CSM user.")
+
+    pricingConditions.push(`Pricing for item: ${currentItem.id}.`)
+
+    if (derivedModifiers.applyStandardTrimDiscount) {
+      pricingConditions.push("Standard trim discount applied (15%).")
+    }
+
+    if (derivedModifiers.addAccountWithMarkup) {
+      pricingConditions.push("Account markup applied (50%).")
+    }
+
+    if (derivedModifiers.applyNextPricing) {
+      pricingConditions.push("Next pricing rules are active.")
+    }
+
+    if (derivedModifiers.overrideUnitCost && derivedOverrideValues.unitCost) {
+      pricingConditions.push(`Unit Cost is overridden to $${Number.parseFloat(derivedOverrideValues.unitCost).toFixed(2)}.`)
+    }
+
+    if (derivedModifiers.overrideUnitPrice && derivedOverrideValues.unitPrice) {
+      pricingConditions.push(`Unit Price is overridden to $${Number.parseFloat(derivedOverrideValues.unitPrice).toFixed(2)}.`)
+    }
+  }
+
   // Handler for override input fields to update global overrideValues directly
   const handleOverrideValueChange = (type: "unitPrice" | "unitCost", value: string) => {
     setOverrideValues((prev) => ({
@@ -430,6 +459,24 @@ export default function PriceCheckApp() {
                   </div>
                 </div>
               </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Conditions Card */}
+        <Card className="bg-white shadow-xl w-full lg:w-72 flex-shrink-0">
+          <CardContent className="p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-4">Pricing Conditions</h3>
+            {pricingConditions.length > 0 ? (
+              <ul className="space-y-2 list-disc pl-5">
+                {pricingConditions.map((condition, index) => (
+                  <li key={index} className="text-sm text-gray-700">
+                    {condition}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-gray-500">Select an actor and enter a valid item ID to see pricing conditions.</p>
             )}
           </CardContent>
         </Card>
