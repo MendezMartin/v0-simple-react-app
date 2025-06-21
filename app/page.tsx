@@ -27,9 +27,9 @@ const initialOverrideValuesState = {
 
 // Define the available items with their base prices
 const availableItems = [
-  { id: "RA6BI", baseUnitCost: 5.208, baseManufacturingCost: 0 },
-  { id: "PP6GR", baseUnitCost: 4.8745, baseManufacturingCost: 2.40 },
-  { id: "BTR", baseUnitCost: 11.4834, baseManufacturingCost: 6.08 },
+  { id: "RA6BI", baseUnitCost: 5.208, baseManufacturingCost: 1, isStandardTrim: true },
+  { id: "PP6GR", baseUnitCost: 4.8745, baseManufacturingCost: 2.4, isStandardTrim: false },
+  { id: "BTR", baseUnitCost: 11.4834, baseManufacturingCost: 6.08, isStandardTrim: false },
 ]
 
 export default function PriceCheckApp() {
@@ -186,7 +186,7 @@ export default function PriceCheckApp() {
 
     // 2. Apply 'Apply standard trim discount' to calculatedUnitCost, unless overrideUnitCost is active
     let discountedCalculatedUnitCost = calculatedUnitCost
-    if (derivedModifiers.applyStandardTrimDiscount) {
+    if (derivedModifiers.applyStandardTrimDiscount && foundItem.isStandardTrim) {
       if (!(derivedModifiers.overrideUnitCost && derivedOverrideValues.unitCost)) {
         discountedCalculatedUnitCost *= 0.85 // Apply 15% discount
         summary.unitCost += " A 15% discount was then applied."
@@ -218,6 +218,7 @@ export default function PriceCheckApp() {
       // UNLESS unit price is overridden
       if (
         derivedModifiers.applyStandardTrimDiscount &&
+        foundItem.isStandardTrim &&
         !(derivedModifiers.overrideUnitPrice && derivedOverrideValues.unitPrice)
       ) {
         finalUnitPrice *= 0.85 // Apply 15% discount
@@ -246,7 +247,8 @@ export default function PriceCheckApp() {
 
   // Determine disabled states for UI elements based on selectedActor and derivedModifiers
   const isItemIdDisabled = !selectedActor
-  const isStandardTrimDiscountDisabled = !selectedActor || results === null
+  const isStandardTrimDiscountDisabled =
+    !selectedActor || results === null || (!!currentItem && !currentItem.isStandardTrim)
   const isAddAccountWithMarkupDisabled = !selectedActor || selectedActor === "account" || selectedActor === "csmUser" || results === null
   const isOverrideUnitCostDisabled = !selectedActor || selectedActor !== "csmUser" || results === null
   const isOverrideUnitPriceDisabled =
