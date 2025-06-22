@@ -179,8 +179,8 @@ export default function PriceCheckApp() {
     if (derivedModifiers.applyNextPricing) {
       currentManufacturingCost += 3.0 // Apply to manufacturing cost
       calculatedUnitCost += 8.0 // Apply to calculated unit cost
-      summary.manufacturingCost = "Base cost + 'Next Pricing' adjustment."
-      summary.unitCost = "Base cost + 'Next Pricing' adjustment."
+      summary.manufacturingCost = "'Next Pricing' price list applied."
+      summary.unitCost = "'Next Pricing' price list applied."
     }
 
     // 2. Apply 'Apply standard trim discount' to calculatedUnitCost, unless overrideUnitCost is active
@@ -211,7 +211,7 @@ export default function PriceCheckApp() {
     if (derivedModifiers.addAccountWithMarkup) {
       // If markup is ON, calculate unit price with markup on initialBaseUnitCost
       finalUnitPrice = baseUnitPriceForMarkup * 1.5
-      summary.unitPrice = "Base cost + 50% markup."
+      summary.unitPrice = "Base unit cost + 50% markup."
 
       // If markup is ON AND standard trim discount is ON, apply discount to unit price
       // UNLESS unit price is overridden
