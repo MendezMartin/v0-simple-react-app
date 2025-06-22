@@ -168,8 +168,8 @@ export default function PriceCheckApp() {
     const initialManufacturingCost = foundItem.baseManufacturingCost
 
     const summary = {
-      manufacturingCost: "Derived from the item's base manufacturing cost.",
-      unitCost: "Derived from the item's base unit cost.",
+      manufacturingCost: "Item's base manufacturing cost.",
+      unitCost: "Item's base unit cost.",
       unitPrice: "",
     }
 
