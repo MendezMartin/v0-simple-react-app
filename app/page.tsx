@@ -61,11 +61,6 @@ export default function PriceCheckApp() {
   const derivedModifiers = { ...modifiers }
   const derivedOverrideValues = { ...overrideValues }
 
-  // Apply actor-specific overrides to the derived states for calculation and UI display
-  if (selectedActor === "account") {
-    derivedModifiers.addAccountWithMarkup = true // Account user always has markup on
-  }
-
   // Function to validate and find item
   const validateAndFindItem = (itemId: string) => {
     const foundItem = availableItems.find(item => item.id.toLowerCase() === itemId.trim().toLowerCase())
@@ -125,6 +120,10 @@ export default function PriceCheckApp() {
   const handleActorChange = (actor: string) => {
     // Only update the selected actor. Modifiers and override values persist globally.
     setSelectedActor(actor)
+    if (actor === "account") {
+      // For the account actor, markup is always on.
+      setModifiers((prev) => ({ ...prev, addAccountWithMarkup: true }))
+    }
   }
 
   const handleApplyNextPricingClick = () => {
